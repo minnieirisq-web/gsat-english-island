@@ -181,4 +181,112 @@ function exportCSV(){let rows=[['日期','測驗','答對','總題數','正確�
 async function importJSON(input){try{let o=JSON.parse(await input.files[0].text());if(o.app!=='gsat_learning_island_v2'||!o.data||!o.data.results||!o.data.sessions)throw Error('不是本網站匯出的進度格式');if(!confirm('要用匯入檔案覆蓋這個瀏覽器目前的進度嗎？'))return;state=o.data;save();draw();alert('匯入完成')}catch(e){alert('匯入失敗：'+e.message)}}
 function clearAll(){if(confirm('確定清除所有作答與學習進度嗎？此動作無法復原，請先匯出備份。')){state={results:{},wrong:{},learned:{},sessions:[],settings:{}};save();draw()}}
 window.addEventListener('beforeunload',()=>{if('speechSynthesis'in window)speechSynthesis.cancel()});draw();
+</script><script data-enhancement="spelling-v1">
+(function(){
+const css=`
+.week .statusLabel{display:block;margin-top:7px;font-size:12px;font-weight:700;color:#56746a}
+.spellCard{max-width:740px;margin:auto;padding:clamp(16px,4vw,30px)}
+.spellPrompt{font-size:clamp(22px,5vw,30px);font-weight:800;margin:15px 0;color:#333568}
+.spellInput{width:100%;font-size:20px;border:2px solid #d9d6f6;background:white;border-radius:12px;padding:14px;min-height:52px;color:#29364e}
+.spellInput:focus{outline:3px solid #dedcff;border-color:#8b85d2}
+.spellFeedback{padding:14px;margin:13px 0;border-radius:12px;background:#f5f3ff;line-height:1.8}
+.spellControls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.clozeStepNav{display:none;gap:8px;align-items:center;justify-content:space-between;margin-top:12px}
+.clozeStepNav button{min-height:44px}
+.clozeStepCount{color:#514e9f;font-weight:750}
+@media(max-width:700px){
+.clozeQuestion .readingSource{position:relative;top:auto;z-index:auto;max-height:none;padding:0 0 8px}
+.clozeQuestion .passageDetails .passage{max-height:30vh;font-size:15px;line-height:1.65}
+.clozeQuestion .sharedOptions .subquestion{display:none;padding:8px 0}
+.clozeQuestion .sharedOptions .subquestion.activeCloze{display:block}
+.clozeQuestion .clozeStepNav{display:flex}
+.clozeQuestion .sharedLayout{display:flex;flex-direction:column;gap:5px}
+.clozeQuestion .sharedOptions{width:100%}
+.clozeQuestion .optionGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.clozeQuestion .option{min-height:48px;padding:10px 7px;font-size:14px;overflow-wrap:anywhere}
+.clozeQuestion .passageDetails summary{padding:7px 10px}
+.clozeQuestion .subquestion h3{font-size:16px;line-height:1.45;margin:8px 0}
+}
+`;
+const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+const saved=JSON.parse(localStorage.getItem(STORE)||'{}');
+state.spelling=state.spelling||saved.spelling||{};
+const nativeGroupHTML=groupHTML;
+groupHTML=function(gr,v){
+ let html=nativeGroupHTML(gr,v);
+ if(gr[0]?.type!=='cloze'||!gr[0]?.passage)return html;
+ const id=gr[0].id;
+ html=html.replace('class="question sharedQuestion"','class="question sharedQuestion clozeQuestion"');
+ html=html.replace('class="subquestion"','class="subquestion activeCloze"');
+ const nav='<div class="clozeStepNav"><button class="btn" onclick="clozeStep(\''+id+'\',-1)">← 上一題</button><span class="clozeStepCount" id="count-'+id+'">第 1 / '+gr.length+' 題</span><button class="btn primary" onclick="clozeStep(\''+id+'\',1)">下一題 →</button></div>';
+ html=html.replace(/<\/div><\/div><\/div>$/,nav+'</div></div></div>');
+ return html;
+};
+window.clozeStep=function(id,direction){
+ const root=document.getElementById('q-'+id)?.closest('.clozeQuestion');if(!root)return;
+ const qs=Array.from(root.querySelectorAll('.subquestion'));
+ let current=qs.findIndex(x=>x.classList.contains('activeCloze'));if(current<0)current=0;
+ const next=Math.max(0,Math.min(qs.length-1,current+direction));
+ qs.forEach((q,i)=>q.classList.toggle('activeCloze',i===next));
+ const label=document.getElementById('count-'+id);if(label)label.textContent='第 '+(next+1)+' / '+qs.length+' 題';
+};
+function status(ids){
+ const done=ids.filter(id=>state.results[id]&&state.results[id].chosen!==null&&state.results[id].chosen!==undefined).length;
+ return done===ids.length?'✓ 已完成':done?'已做過 '+done+'/'+ids.length:'○ 未練習';
+}
+function decorateWeeks(){
+ if(tab!=='grammar'&&tab!=='cloze'&&tab!=='reading'&&tab!=='home')return;
+ const buttons=document.querySelectorAll('.weekGrid');
+ if(!buttons.length)return;
+ const grid=buttons[buttons.length-1];
+ const t=['grammar','cloze','reading'].includes(tab)?tab:null;
+ grid.querySelectorAll('.week').forEach((btn,i)=>{
+  const w=DATA.weeks[i];if(!w)return;
+  const ids=w.questions.filter(q=>!t||q.type===t).map(q=>q.id);
+  btn.querySelector('.statusLabel')?.remove();
+  const tag=document.createElement('span');tag.className='statusLabel';tag.textContent=status(ids);btn.appendChild(tag);
+ });
+}
+let game=null;
+window.startSpelling=function(){
+ const words=DATA.cards.filter(w=>w.level===view.level);
+ game={words:hashShuffle(words).slice(0,Math.min(10,words.length)),index:0,correct:0,checked:false};draw();
+};
+window.playSpelling=function(){
+ if(game&&game.index<game.words.length)speak(game.words[game.index].word);
+};
+window.checkSpelling=function(){
+ if(!game||game.checked)return false;
+ const input=document.getElementById('spellInput');
+ const answer=input?.value.trim().toLowerCase().replace(/\s+/g,' ');
+ if(!answer){alert('請先輸入英文拼字');return false}
+ const word=game.words[game.index],ok=answer===word.word.toLowerCase();
+ game.checked=true;game.lastOK=ok;if(ok)game.correct++;
+ const record=state.spelling[word.word]||{tries:0,correct:0};
+ record.tries++;record.correct+=ok?1:0;record.lastCorrect=ok;record.last=Date.now();
+ state.spelling[word.word]=record;save();draw();return false;
+};
+window.nextSpelling=function(){if(!game||!game.checked)return;game.index++;game.checked=false;draw()};
+window.resetSpelling=function(){game=null;draw()};
+window.spellingPage=function(){
+ const choices=Array.from({length:6},(_,i)=>'<option value="'+(i+1)+'" '+(view.level===i+1?'selected':'')+'>Level '+(i+1)+'</option>').join('');
+ if(!game)return '<section class="section"><div class="eyebrow">SPELLING GAME</div><h2>⌨️ 拼字小遊戲</h2><p class="muted">依中文提示、聽英文發音，再拼出單字。交卷前不顯示答案；每輪 10 題，保存練習次數。</p><div class="panel spellCard"><label>選擇級別 <select onchange="view.level=+this.value;draw()">'+choices+'</select></label><p class="muted">本級 '+DATA.cards.filter(w=>w.level===view.level).length+' 個單字</p><button class="btn primary" onclick="startSpelling()">開始拼字 10 題</button></div></section>';
+ if(game.index>=game.words.length)return '<section class="section"><div class="panel spellCard"><h2>🎉 完成拼字練習</h2><div class="spellPrompt">'+game.correct+' / '+game.words.length+' 答對</div><button class="btn primary" onclick="startSpelling()">再玩一次</button> <button class="btn" onclick="resetSpelling()">選其他級別</button></div></section>';
+ const word=game.words[game.index],rec=state.spelling[word.word];
+ return '<section class="section"><div class="eyebrow">SPELLING · LEVEL '+view.level+'</div><div class="panel spellCard"><p class="muted small">第 '+(game.index+1)+' / '+game.words.length+' 題 · 答對 '+game.correct+' 題</p><div class="progressTrack"><div class="progressBar" style="width:'+(100*game.index/game.words.length)+'%"></div></div><div class="spellPrompt">'+esc(word.zh)+'</div><button class="btn soft" onclick="playSpelling()">🔊 聽單字發音</button><p class="muted small">請輸入英文拼字，作答後才揭曉答案。</p><form onsubmit="return checkSpelling()"><input id="spellInput" class="spellInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="輸入英文拼字" '+(game.checked?'disabled':'')+'><div class="spellControls">'+(game.checked?'<button class="btn primary" type="button" onclick="nextSpelling()">'+(game.index+1===game.words.length?'查看成績':'下一題 →')+'</button>':'<button class="btn primary" type="submit">檢查拼字</button>')+'<button type="button" class="btn" onclick="playSpelling()">重播發音</button></div></form>'+(game.checked?'<div class="spellFeedback"><b>'+(game.lastOK?'✅ 答對！':'📝 正確拼字：')+' '+esc(word.word)+'</b><div>'+esc(word.example)+'</div><div class="muted small">練過 '+rec.tries+' 次</div></div>':'')+'</div></section>';
+};
+const nav=document.querySelector('.nav');
+if(nav&&!nav.querySelector('[data-tab="spelling"]')){
+ const b=document.createElement('button');b.dataset.tab='spelling';b.textContent='拼字遊戲';b.onclick=()=>switchTab('spelling');
+ const before=nav.querySelector('[data-tab="review"]');nav.insertBefore(b,before);
+}
+const nativeDraw=draw;
+draw=function(){
+ if(tab==='spelling'){navbar();document.getElementById('app').innerHTML=spellingPage()}
+ else{nativeDraw();decorateWeeks()}
+};
+const nativeOpenWeeks=openWeeks;
+openWeeks=function(){nativeOpenWeeks();decorateWeeks()};
+draw();
+})();
 </script></body></html>
