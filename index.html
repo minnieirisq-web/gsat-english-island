@@ -218,7 +218,39 @@ function startDaily(){
  startQuiz(items,'今日 10 題 · '+(hard?'進階模式':'基礎模式')+' · 含聽力');
 }
 function setDifficulty(v){view.difficulty=v;draw()}
-function listeningPage(){return `<section class="section"><div class="eyebrow">LISTENING PRACTICE</div><h2>🎧 英語聽力島</h2><p class="muted">共 ${EXTRA.filter(q=>q.type==='listening').length} 題原創英語對話理解。作答前不顯示逐字稿；請聽完再選答案。交卷後可查看逐字稿與中文解析。</p><div class="buttons"><button class="btn primary" onclick="startQuiz(sampleN(EXTRA.filter(q=>q.type==='listening'),10),'聽力挑戰 · 10 題')">開始聽力 10 題</button><button class="btn" onclick="startQuiz(EXTRA.filter(q=>q.type==='listening'),'聽力完整題庫 · 20 題')">完整聽力 20 題</button></div><p class="help">🔊 請先按播放。手機需開啟音量，部分瀏覽器需要點擊後才能啟動語音。</p></section>`}
+function listeningPage(){
+ const all=EXTRA.filter(q=>q.type==='listening');
+ const kind=view.listenCategory||'all';
+ const level=view.listenLevel||0;
+ const filter=all.filter(q=>(kind==='all'||q.category===kind)&&(!level||q.level===level));
+ const kinds=[['all','全部題型'],['daily','日常對話'],['campus','校園生活'],['dialogue','長篇對話'],['announcement','公告與廣播'],['science','科普與學術']];
+ const controls='<div class="controls"><label>主題 <select aria-label="聽力主題" onchange="view.listenCategory=this.value;draw()">'+kinds.map(([key,label])=>'<option value="'+key+'" '+(kind===key?'selected':'')+'>'+label+'</option>').join('')+'</select></label>'+
+ '<label>難度 <select aria-label="聽力難度" onchange="view.listenLevel=+this.value;draw()">'+[0,3,4,5].map(n=>'<option value="'+n+'" '+(level===n?'selected':'')+'>'+(n?'Level '+n:'全部難度')+'</option>').join('')+'</select></label>'+
+ '<label>語速 <select aria-label="聽力朗讀速度" onchange="view.listenRate=+this.value">'+[[0.7,'慢速 0.7×'],[0.85,'稍慢 0.85×'],[1,'正常 1.0×'],[1.15,'進階 1.15×']].map(([n,label])=>'<option value="'+n+'" '+((view.listenRate||0.85)===n?'selected':'')+'>'+label+'</option>').join('')+'</select></label></div>';
+ const buttons=[5,10,20].map(n=>'<button class="btn '+(n===10?'primary':'soft')+'" '+(filter.length<n?'disabled':'')+' onclick="startListeningSet('+n+')">隨機 '+n+' 題</button>').join('');
+ return '<section class="section"><div class="eyebrow">LISTENING PRACTICE</div><h2>🎧 英語聽力島 · '+all.length+' 題</h2><p class="muted">高中英文聽力延伸練習：日常、校園、長對話、公告及科普。先聽音訊再作答，交卷後才顯示逐字稿與中文解析。</p>'+controls+
+ '<p class="small muted">目前篩選 '+filter.length+' 題。Level 3～5 為本站教學分級，並非大考中心官方分級。</p><div class="buttons">'+buttons+'<button class="btn" '+(!filter.length?'disabled':'')+' onclick="startListeningSet(\'all\')">完整篩選題庫（'+filter.length+' 題）</button></div>'+
+ '<div class="panel"><h3>🔁 錯題重練</h3><p>答錯的題目會保存至原本的錯題頁面，可以重新播放、作答。</p><button class="btn soft" onclick="switchTab(\'review\')">進入錯題複習</button></div>'+
+ '<p class="help">音訊採裝置內建英文語音合成，並非真人錄製。手機可能需先點擊播放並開啟音量；更換語速後重新播放即可生效。</p></section>';
+}
+function startListeningSet(n){
+ const category=view.listenCategory||'all',level=view.listenLevel||0;
+ const pool=EXTRA.filter(q=>q.type==='listening'&&(category==='all'||q.category===category)&&(!level||q.level===level));
+ if(!pool.length){alert('目前篩選沒有題目，請更換主題或難度');return}
+ const items=n==='all'?pool:sampleN(pool,n);
+ startQuiz(items,'高中英語聽力 · '+items.length+' 題');
+}
+function speakListening(s){
+ clozeReadToken++;
+ if(!('speechSynthesis' in window)){alert('此裝置不支援瀏覽器英文語音合成');return}
+ speechSynthesis.cancel();
+ const content=cleanSpeechText(s);
+ if(!content)return;
+ const u=new SpeechSynthesisUtterance(content);
+ u.lang='en-US';u.rate=view.listenRate||0.85;
+ speechSynthesis.speak(u);
+}
+
 
 const PASTEXAM_URL='https://www.ceec.edu.tw/xmfile?xsmsid=0j052424829869345634';
 const PASTSTYLE_URL='https://www.ceec.edu.tw/xmdoc/cont?sid=0O211573150658099894&xsmsid=0J018586101460336585';
@@ -270,7 +302,7 @@ function groupHTML(gr,v){
  const source=shared?`<div class="readingSource"><div class="tag">${kind(gr[0].type)} · 共同文章 · ${gr.length} 題</div><div class="muted small">${esc(gr[0].topic||'')}</div><details class="passageDetails" open><summary>📖 文章（點此展開／收合）</summary><div class="passage">${esc(p)}</div></details><button class="btn soft readBtn" onclick="${cloze?'speakCloze':'speak'}(${JSON.stringify(p).replaceAll('"','&quot;')})">🔊 朗讀文章${cloze?'（空格停頓）':''}</button></div>`:'';
  const qs=gr.map((q,gi)=>{
  const sel=v.answers[q.id],isListening=q.type==='listening';
- return `<div id="q-${q.id}" class="${shared?'subquestion':'singleQuestion'} ${cloze&&gi===0?'activeCloze':''}">${!shared?`<div class="tag">${kind(q.type)}</div>`:''}<div class="small muted">${q.id.startsWith('listen-')?'聽力題':q.id.startsWith('adv-')?'進階題':'第 '+q.num+' 題 · Week '+q.id.slice(0,2)}</div>${isListening?`<button class="btn soft listenButton" onclick="speak(${JSON.stringify(q.speech).replaceAll('"','&quot;')})">▶ 播放英文對話</button><p class="small muted">交卷前不會顯示聽力逐字稿。</p>`:''}<h3>${esc(q.q)}</h3>${!shared&&!isListening&&q.type!=='word'?`<button class="btn soft" style="margin-bottom:12px" onclick="speak(${JSON.stringify(q.speech||q.q).replaceAll('"','&quot;')})">🔊 朗讀題目</button>`:''}<div class="optionGrid">${q.opts.map((o,i)=>`<button class="option ${sel===i?'selected':''} ${v.graded?(i===q.ans?'correct':sel===i?'wrong':''):''}" ${v.graded?'disabled':''} onclick="pick('${q.id}',${i})"><span class="letter">${'ABCD'[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>${v.graded?`<div class="explanation"><strong>${sel===q.ans?'✅ 答對':'📝 答案：'+('ABCD'[q.ans])}</strong><div>${esc(q.explain||'')}</div>${isListening?`<details><summary>查看英文逐字稿</summary><p>${esc(q.speech)}</p></details>`:''}</div>`:''}</div>`}).join('');
+ return `<div id="q-${q.id}" class="${shared?'subquestion':'singleQuestion'} ${cloze&&gi===0?'activeCloze':''}">${!shared?`<div class="tag">${kind(q.type)}</div>`:''}<div class="small muted">${q.id.startsWith('listen-')?'聽力題':q.id.startsWith('adv-')?'進階題':'第 '+q.num+' 題 · Week '+q.id.slice(0,2)}</div>${isListening?`<button class="btn soft listenButton" onclick="speakListening(${JSON.stringify(q.speech).replaceAll('"','&quot;')})">▶ 播放英文對話</button><p class="small muted">交卷前不會顯示聽力逐字稿。</p>`:''}<h3>${esc(q.q)}</h3>${!shared&&!isListening&&q.type!=='word'?`<button class="btn soft" style="margin-bottom:12px" onclick="speak(${JSON.stringify(q.speech||q.q).replaceAll('"','&quot;')})">🔊 朗讀題目</button>`:''}<div class="optionGrid">${q.opts.map((o,i)=>`<button class="option ${sel===i?'selected':''} ${v.graded?(i===q.ans?'correct':sel===i?'wrong':''):''}" ${v.graded?'disabled':''} onclick="pick('${q.id}',${i})"><span class="letter">${'ABCD'[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>${v.graded?`<div class="explanation"><strong>${sel===q.ans?'✅ 答對':'📝 答案：'+('ABCD'[q.ans])}</strong><div>${esc(q.explain||'')}</div>${isListening?`<details><summary>查看英文逐字稿</summary><p>${esc(q.speech)}</p></details>`:''}</div>`:''}</div>`}).join('');
  const gid=gr[0].id;
  const nav=cloze?`<div class="clozeStepNav" data-group="${gid}"><button class="btn" onclick="clozeStep('${gid}',-1)">← 上一題</button><span class="clozeStepCount" id="count-${gid}">第 1 / ${gr.length} 題</span><button class="btn primary" onclick="clozeStep('${gid}',1)">下一題 →</button></div>`:'';
  return `<div class="question ${shared?'sharedQuestion':''} ${cloze?'clozeQuestion':''}" id="group-${gid}">${shared?`<div class="sharedLayout">${source}<div class="sharedOptions"><div class="small muted">${cloze?'📱 手機版：文章與目前題目放在同一畫面，使用下一題切換':'共同文章'} · 共 ${gr.length} 題</div>${qs}${nav}</div></div>`:qs}</div>`;
