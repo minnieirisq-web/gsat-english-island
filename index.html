@@ -247,18 +247,36 @@ function grammarPage500(){
 }
 function startGrammar500(n){const lev=view.grammarLevel||0,topic=view.grammarTopic||'all';const pool=GRAMMAR_500.filter(q=>(!lev||q.level===lev)&&(topic==='all'||q.category===topic));if(!pool.length){alert('目前沒有符合條件的題目');return;}const chosen=n==='all'?pool:hashShuffle(pool).slice(0,n);startQuiz(chosen,'文法島 · '+chosen.length+' 題');}
 
+function clozeFilteredPool(){
+ const level=view.clozeLevel||0,source=view.clozeSource||'all',week=view.clozeWeek||0,category=view.clozeCategory||'all';
+ return CLOZE_100.filter(q=>(!level||q.level===level)
+   &&(source==='all'||(source==='original'?!q.id.startsWith('clz100-'):q.id.startsWith('clz100-')))
+   &&(!week||(!q.id.startsWith('clz100-')&&Number(q.id.slice(0,2))===week))
+   &&(category==='all'||q.category===category));
+}
 function clozePage100(){
- const level=view.clozeLevel||0,category=view.clozeCategory||'all';
- const categories=[...new Set(CLOZE_100.filter(q=>!level||q.level===level).map(q=>q.category))];
- const pool=CLOZE_100.filter(q=>(!level||q.level===level)&&(category==='all'||q.category===category));
- const units=groupByPassage(pool);
+ const source=view.clozeSource||'all',level=view.clozeLevel||0,week=view.clozeWeek||0,category=view.clozeCategory||'all';
+ const available=CLOZE_100.filter(q=>(!level||q.level===level)&&(source==='all'||(source==='original'?!q.id.startsWith('clz100-'):q.id.startsWith('clz100-'))));
+ const categories=[...new Set(available.map(q=>q.category))];
+ const pool=clozeFilteredPool(),units=groupByPassage(pool);
  const counts=[1,2,3,4,5].map(l=>groupByPassage(CLOZE_100.filter(q=>q.level===l)).length);
- return '<section class="section"><div class="eyebrow">CLOZE · 100 PASSAGES</div><h2>🧩 克漏字島 · '+groupByPassage(CLOZE_100).length+' 篇 / '+CLOZE_100.length+' 題</h2><p class="muted">保留25篇原有文章，新增75篇生活、科技、自然、文化與公民議題。每篇4題，採完整文章閱讀，附中文解析、朗讀與錯題重練。本站難度分級並非大考中心官方分級。</p><div class="controls"><label>難度 <select aria-label="克漏字難度" onchange="view.clozeLevel=+this.value;view.clozeCategory=\'all\';draw()"><option value="0">全部難度</option>'+[1,2,3,4,5].map((l,i)=>'<option value="'+l+'" '+(level===l?'selected':'')+'>Level '+l+'（'+counts[i]+' 篇）</option>').join('')+'</select></label><label>主題 <select aria-label="克漏字主題" onchange="view.clozeCategory=this.value;draw()"><option value="all">全部主題</option>'+categories.map(c=>'<option value="'+esc(c)+'" '+(category===c?'selected':'')+'>'+esc(c)+'</option>').join('')+'</select></label></div><p class="small muted">目前可選 '+units.length+' 篇 / '+pool.length+' 題。練習時不會拆散同一篇文章。</p><div class="buttons">'+[1,3,5].map(n=>'<button class="btn '+(n===3?'primary':'soft')+'" '+(units.length<n?'disabled':'')+' onclick="startCloze100('+n+')">隨機 '+n+' 篇</button>').join('')+'<button class="btn" '+(!units.length?'disabled':'')+' onclick="startCloze100(\'all\')">全部 '+units.length+' 篇</button></div><div class="panel"><h3>🔁 克漏字錯題重練</h3><p>交卷後自動保留錯題，重練時仍會提供完整文章與上下文。</p><button class="btn soft" onclick="switchTab(\'review\')">進入錯題島</button></div><h3>原有25週課程</h3><div class="weekGrid">'+DATA.weeks.map(w=>'<button class="week" onclick="startType(\'cloze\','+w.week+')">Week '+String(w.week).padStart(2,'0')+'<div class="small muted">1篇 / 4題</div><span class="statusLabel">'+weekStatus(w,'cloze')+'</span></button>').join('')+'</div></section>';
+ return '<section class="section"><div class="eyebrow">CLOZE · 100 PASSAGES</div><h2>🧩 克漏字島 · 100 篇 / 400 題</h2>'
+  +'<p class="muted">原有25週（25篇）與新增75篇合併為同一題庫。先篩選來源、難度或主題，再自由決定練習篇數。每篇4題，保留文章、朗讀、中文解析與錯題重練。</p>'
+  +'<div class="controls">'
+  +'<label>題庫 <select aria-label="克漏字題庫來源" onchange="view.clozeSource=this.value;view.clozeWeek=0;view.clozeCategory=\'all\';draw()">'
+  +[['all','全部100篇'],['original','原有25週 · 25篇'],['new','新增75篇']].map(([v,t])=>'<option value="'+v+'" '+(source===v?'selected':'')+'>'+t+'</option>').join('')+'</select></label>'
+  +'<label>難度 <select aria-label="克漏字難度" onchange="view.clozeLevel=+this.value;view.clozeWeek=0;view.clozeCategory=\'all\';draw()"><option value="0">全部難度</option>'
+  +[1,2,3,4,5].map((l,i)=>'<option value="'+l+'" '+(level===l?'selected':'')+'>Level '+l+'（'+counts[i]+'篇）</option>').join('')+'</select></label>'
+  +'<label>主題 <select aria-label="克漏字主題" onchange="view.clozeCategory=this.value;draw()"><option value="all">全部主題</option>'
+  +categories.map(c=>'<option value="'+esc(c)+'" '+(category===c?'selected':'')+'>'+esc(c)+'</option>').join('')+'</select></label>'
+  +(source==='original'?'<label>原有週次 <select aria-label="原有課程週次" onchange="view.clozeWeek=+this.value;draw()"><option value="0">全部25週</option>'+DATA.weeks.map(w=>'<option value="'+w.week+'" '+(week===w.week?'selected':'')+'>Week '+String(w.week).padStart(2,'0')+'</option>').join('')+'</select></label>':'')
+  +'</div><p class="small muted">目前選取 '+units.length+' 篇 / '+pool.length+' 題。Level 為本站教學分級，非大考中心官方分級。</p>'
+  +'<div class="buttons">'+[1,3,5].map(n=>'<button class="btn '+(n===3?'primary':'soft')+'" '+(units.length<n?'disabled':'')+' onclick="startCloze100('+n+')">隨機 '+n+' 篇</button>').join('')
+  +'<button class="btn" '+(!units.length?'disabled':'')+' onclick="startCloze100(\'all\')">全部 '+units.length+' 篇</button></div>'
+  +'<div class="panel"><h3>🔁 克漏字錯題重練</h3><p>作答後保留錯題，重練時仍呈現完整短文。</p><button class="btn soft" onclick="switchTab(\'review\')">進入錯題島</button></div></section>';
 }
 function startCloze100(n){
- const level=view.clozeLevel||0,category=view.clozeCategory||'all';
- const pool=CLOZE_100.filter(q=>(!level||q.level===level)&&(category==='all'||q.category===category));
- const units=groupByPassage(pool);
+ const pool=clozeFilteredPool(),units=groupByPassage(pool);
  if(!units.length){alert('目前篩選沒有文章');return;}
  const picked=n==='all'?units:hashShuffle(units).slice(0,n);
  startQuiz(picked.flat(),'克漏字島 · '+picked.length+' 篇 / '+(picked.length*4)+' 題');
