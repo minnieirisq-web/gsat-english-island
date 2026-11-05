@@ -238,14 +238,40 @@ function startReadingById(id){
  if(g)startQuiz(g,'閱讀理解 · '+(g[0].topic||'單篇練習'));
 }
 
-function grammarPage500(){
- const lev=view.grammarLevel||0,topic=view.grammarTopic||'all';
- const topics=[...new Set(GRAMMAR_500.filter(q=>!lev||q.level===lev).map(q=>q.category))];
- const pool=GRAMMAR_500.filter(q=>(!lev||q.level===lev)&&(topic==='all'||q.category===topic));
- const levelCounts=[1,2,3,4,5].map(n=>GRAMMAR_500.filter(q=>q.level===n).length);
- return '<section class="section"><div class="eyebrow">GRAMMAR PRACTICE · 500 QUESTIONS</div><h2>📝 文法島 · '+GRAMMAR_500.length+' 題</h2><p class="muted">保留原有100題，新增400題；按程度與主題練習，附四選一、中文解析、朗讀及錯題重練。Level 為本站教學分級，非官方分級。</p><div class="controls"><label>難度 <select aria-label="文法難度" onchange="view.grammarLevel=+this.value;view.grammarTopic=\'all\';draw()"><option value="0">全部等級</option>'+[1,2,3,4,5].map((n,i)=>'<option value="'+n+'" '+(lev===n?'selected':'')+'>Level '+n+'（'+levelCounts[i]+' 題）</option>').join('')+'</select></label><label>文法主題 <select aria-label="文法主題" onchange="view.grammarTopic=this.value;draw()"><option value="all">全部主題</option>'+topics.map(t=>'<option value="'+esc(t)+'" '+(topic===t?'selected':'')+'>'+esc(t)+'</option>').join('')+'</select></label></div><p class="muted small">目前可練習 '+pool.length+' 題；每次隨機抽題，不重複。</p><div class="buttons">'+[5,10,20,30].map(n=>'<button class="btn '+(n===10?'primary':'soft')+'" '+(pool.length<n?'disabled':'')+' onclick="startGrammar500('+n+')">隨機 '+n+' 題</button>').join('')+'<button class="btn" '+(!pool.length?'disabled':'')+' onclick="startGrammar500(\'all\')">全部 '+pool.length+' 題</button></div><div class="panel"><h3>🔁 文法錯題</h3><p>交卷後保存錯題，前往錯題島即可重練。</p><button class="btn soft" onclick="switchTab(\'review\')">進入錯題島</button></div><h3>原有 25 週練習</h3><div class="weekGrid">'+DATA.weeks.map(w=>'<button class="week" onclick="startType(\'grammar\','+w.week+')">Week '+String(w.week).padStart(2,'0')+'<div class="small muted">4 題</div><span class="statusLabel">'+weekStatus(w,'grammar')+'</span></button>').join('')+'</div></section>';
+function grammarFilteredPool(){
+ const level=view.grammarLevel||0,source=view.grammarSource||'all',week=view.grammarWeek||0,topic=view.grammarTopic||'all';
+ return GRAMMAR_500.filter(q=>(!level||q.level===level)
+  &&(source==='all'||(source==='original'?!q.id.startsWith('gram500-'):q.id.startsWith('gram500-')))
+  &&(!week||(!q.id.startsWith('gram500-')&&Number(q.id.slice(0,2))===week))
+  &&(topic==='all'||q.category===topic));
 }
-function startGrammar500(n){const lev=view.grammarLevel||0,topic=view.grammarTopic||'all';const pool=GRAMMAR_500.filter(q=>(!lev||q.level===lev)&&(topic==='all'||q.category===topic));if(!pool.length){alert('目前沒有符合條件的題目');return;}const chosen=n==='all'?pool:hashShuffle(pool).slice(0,n);startQuiz(chosen,'文法島 · '+chosen.length+' 題');}
+function grammarPage500(){
+ const lev=view.grammarLevel||0,source=view.grammarSource||'all',week=view.grammarWeek||0,topic=view.grammarTopic||'all';
+ const available=GRAMMAR_500.filter(q=>(!lev||q.level===lev)&&(source==='all'||(source==='original'?!q.id.startsWith('gram500-'):q.id.startsWith('gram500-'))));
+ const topics=[...new Set(available.map(q=>q.category))];
+ const pool=grammarFilteredPool();
+ const counts=[1,2,3,4,5].map(n=>GRAMMAR_500.filter(q=>q.level===n).length);
+ return '<section class="section"><div class="eyebrow">GRAMMAR PRACTICE · 500 QUESTIONS</div><h2>📝 文法島 · 500 題</h2>'
+  +'<p class="muted">原有25週（100題）與新增400題已合併在同一題庫。可依題庫來源、難度、主題及原有週次篩選，保留四選一、英文朗讀、中文解析及錯題重練。</p>'
+  +'<div class="controls">'
+  +'<label>題庫 <select aria-label="文法題庫來源" onchange="view.grammarSource=this.value;view.grammarWeek=0;view.grammarTopic=\'all\';draw()">'
+  +[['all','全部500題'],['original','原有25週 · 100題'],['new','新增400題']].map(([v,t])=>'<option value="'+v+'" '+(source===v?'selected':'')+'>'+t+'</option>').join('')+'</select></label>'
+  +'<label>難度 <select aria-label="文法難度" onchange="view.grammarLevel=+this.value;view.grammarWeek=0;view.grammarTopic=\'all\';draw()"><option value="0">全部難度</option>'
+  +[1,2,3,4,5].map((n,i)=>'<option value="'+n+'" '+(lev===n?'selected':'')+'>Level '+n+'（'+counts[i]+'題）</option>').join('')+'</select></label>'
+  +'<label>文法主題 <select aria-label="文法主題" onchange="view.grammarTopic=this.value;draw()"><option value="all">全部主題</option>'
+  +topics.map(t=>'<option value="'+esc(t)+'" '+(topic===t?'selected':'')+'>'+esc(t)+'</option>').join('')+'</select></label>'
+  +(source==='original'?'<label>原有週次 <select aria-label="原有文法週次" onchange="view.grammarWeek=+this.value;draw()"><option value="0">全部25週</option>'+DATA.weeks.map(w=>'<option value="'+w.week+'" '+(week===w.week?'selected':'')+'>Week '+String(w.week).padStart(2,'0')+'</option>').join('')+'</select></label>':'')
+  +'</div><p class="muted small">目前可練習 '+pool.length+' 題；單次隨機抽題不重複。Level 為本站教學分級，非大考中心官方分級。</p>'
+  +'<div class="buttons">'+[5,10,20,30].map(n=>'<button class="btn '+(n===10?'primary':'soft')+'" '+(pool.length<n?'disabled':'')+' onclick="startGrammar500('+n+')">隨機 '+n+' 題</button>').join('')
+  +'<button class="btn" '+(!pool.length?'disabled':'')+' onclick="startGrammar500(\'all\')">全部 '+pool.length+' 題</button></div>'
+  +'<div class="panel"><h3>🔁 文法錯題重練</h3><p>交卷後保存錯題，可隨時進入錯題島複習。</p><button class="btn soft" onclick="switchTab(\'review\')">進入錯題島</button></div></section>';
+}
+function startGrammar500(n){
+ const pool=grammarFilteredPool();
+ if(!pool.length){alert('目前沒有符合條件的題目');return;}
+ const chosen=n==='all'?pool:hashShuffle(pool).slice(0,n);
+ startQuiz(chosen,'文法島 · '+chosen.length+' 題');
+}
 
 function clozeFilteredPool(){
  const level=view.clozeLevel||0,source=view.clozeSource||'all',week=view.clozeWeek||0,category=view.clozeCategory||'all';
